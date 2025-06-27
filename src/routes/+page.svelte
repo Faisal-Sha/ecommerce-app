@@ -83,8 +83,15 @@
       
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Update cart and remove from queue
-      $cart = [...$cart, { ...item, queueStatus: 'Added to cart!', quantity: 1 }];
+      // Check if item already exists in cart
+      const existingItemIndex = $cart.findIndex(cartItem => cartItem.id === item.id);
+      if (existingItemIndex !== -1) {
+        // Increment quantity if item exists
+        $cart[existingItemIndex].quantity += 1;
+      } else {
+        // Add new item with quantity 1 if it doesn't exist
+        $cart = [...$cart, { ...item, queueStatus: 'Added to cart!', quantity: 1 }];
+      }
       $cartQueue = $cartQueue.slice(1);
       
       if ($cartQueue.length > 0) {

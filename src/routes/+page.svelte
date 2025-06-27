@@ -2,7 +2,7 @@
 <script>
     import { mount } from 'svelte';
     import { writable } from 'svelte/store';
-    import { cart, cartQueue } from '$lib/cartStore';
+    import { PRODUCTS_PER_PAGE, DEBOUNCE_DELAY, QUEUE_DELAY, CHECKOUT_COOLDOWN } from '$lib/constants';
     
     // Reactive state management using Svelte 5 runes
     let currentPage = $state('home');
@@ -14,10 +14,21 @@
     let lastCheckoutTime = $state(0);
     let checkoutCooldown = $state(0);
     
-    const PRODUCTS_PER_PAGE = 10;
-    const DEBOUNCE_DELAY = 300;
-    const QUEUE_DELAY = 500;
-    const CHECKOUT_COOLDOWN = 10000; // 10 seconds
+    // Use local state with Runes for cart and queue
+    let cart = $state([]);
+    let cartQueue = $state([]);
+    
+    let totalPrice = $state('0.00');
+    $effect(() => {
+      totalPrice = cart.reduce((sum, item) => {
+        return sum + (typeof item.price === "number" ? item.price : 0);
+      }, 0).toFixed(2);
+    });
+
+    let queueStatus = $state('Ready');
+    $effect(() => {
+      queueStatus = cartQueue.length > 0 ? 'Adding to cart...' : 'Ready';
+    });
     
     // Initialize app
     $effect(() => {
@@ -77,38 +88,39 @@
     
     // Cart queue system
     async function processCartQueue() {
-      if ($cartQueue.length === 0) return;
+      if (cartQueue.length === 0) return;
       
-      const item = $cartQueue[0];
+      const item = cartQueue[0];
       
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Check if item already exists in cart
-      const existingItemIndex = $cart.findIndex(cartItem => cartItem.id === item.id);
+      const existingItemIndex = cart.findIndex(cartItem => cartItem.id === item.id);
       if (existingItemIndex !== -1) {
         // Increment quantity if item exists
-        $cart[existingItemIndex].quantity += 1;
+        cart[existingItemIndex].quantity += 1;
       } else {
         // Add new item with quantity 1 if it doesn't exist
-        $cart = [...$cart, { ...item, queueStatus: 'Added to cart!', quantity: 1 }];
+        cart = [...cart, { ...item, queueStatus: 'Added to cart!', quantity: 1 }];
       }
-      $cartQueue = $cartQueue.slice(1);
+      cartQueue = cartQueue.slice(1);
       
-      if ($cartQueue.length > 0) {
+      if (cartQueue.length > 0) {
         processCartQueue();
       }
     }
     
     function addToCart(product) {
       const item = { ...product, queueStatus: 'Adding to cart...' };
-      $cartQueue = [...$cartQueue, item];
-      if ($cartQueue.length === 1) {
+      cartQueue = [...cartQueue, item];
+      if (cartQueue.length === 1) {
         processCartQueue();
       }
     }
     
     function removeFromCart(productId) {
-      $cart = $cart.filter(item => item.id !== productId);
+      // Optimistic update for removal
+      cart = cart.filter(item => item.id !== productId);
     }
     
     function navigate(page, pageNum = 1) {
@@ -141,14 +153,13 @@
     function checkout() {
       const now = Date.now();
       if (now - lastCheckoutTime < CHECKOUT_COOLDOWN) {
-        alert('Please wait before checking out again.');
+        alert(`Please wait ${Math.ceil((CHECKOUT_COOLDOWN - (now - lastCheckoutTime)) / 1000)} seconds before another checkout.`);
         return;
       }
-      
       lastCheckoutTime = now;
       checkoutCooldown = CHECKOUT_COOLDOWN;
       alert('Checkout successful! Thank you for your purchase.');
-      $cart = [];
+      cart = [];
     }
     
     // Filter and paginate products
@@ -176,22 +187,6 @@
       );
       paginatedProducts = paginated;
     });
-    
-    let totalPrice = $state('0.00');
-    $effect(() => {
-      cart.subscribe(value => {
-        totalPrice = value.reduce((sum, item) => {
-          return sum + (typeof item.price === "number" ? item.price : 0);
-        }, 0).toFixed(2);
-      });
-    });
-    
-    let queueStatus = $state('Ready');
-    $effect(() => {
-      cartQueue.subscribe(value => {
-        queueStatus = value.length > 0 ? 'Adding to cart...' : 'Ready';
-      });
-    });
   </script>
   
   <main class="min-h-screen bg-gray-50">
@@ -206,12 +201,12 @@
             <span class="text-sm text-gray-600">
               👥 {activeUsers} users online
             </span>
-            {#if $cart.length > 0}
+            {#if cart.length > 0}
               <span class="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-md transform transition-transform hover:scale-105">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
-                {$cart.reduce((sum, item) => sum + (item.quantity || 1), 0)}
+                {cart.reduce((sum, item) => sum + (item.quantity || 1), 0)}
               </span>
             {/if}
           </div>
@@ -236,7 +231,7 @@
             class="bg-green-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors"
             onclick={() => navigate('checkout')}
           >
-            Checkout ({$cart.length})
+            Checkout ({cart.length})
           </button>
         </div>
         
@@ -297,7 +292,7 @@
                         addToCart(product);
                       }}
                     >
-                      {$cartQueue.some(item => item.id === product.id) ? 'Adding...' : 'Add to Cart'}
+                      {cartQueue.some(item => item.id === product.id) ? 'Adding...' : 'Add to Cart'}
                     </button>
                   </div>
                 </div>
@@ -354,7 +349,7 @@
           </button>
         </div>
   
-        {#if $cart.length === 0}
+        {#if cart.length === 0}
           <div class="text-center py-16">
             <p class="text-xl text-gray-600 mb-4">Your cart is empty</p>
             <button 
@@ -367,49 +362,51 @@
         {:else}
           <!-- Cart Items -->
           <div class="bg-white rounded-lg shadow-md mb-6">
-            {#each $cart as item (item.id)}
+            {#each cart as item (item.id)}
               <div class="flex items-center gap-4 p-4 border-b last:border-b-0">
                 <img 
                   src={item.image} 
                   alt={item.title}
-                  class="w-16 h-16 object-cover rounded"
+                  class="w-16 h-16 object-contain rounded"
                 />
                 <div class="flex-1">
-                  <h3 class="font-semibold text-gray-800">{item.title}</h3>
-                  <p class="text-gray-600">Quantity: {item.quantity}</p>
+                  <h4 class="font-semibold">{item.title}</h4>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="text-sm text-gray-600">Quantity: {item.quantity}</span>
+                  </div>
                 </div>
-                <div class="text-right">
-                  <p class="font-semibold text-gray-800">${(item.price * item.quantity).toFixed(2)}</p>
+                <div class="flex items-center gap-4">
+                  <p class="font-semibold">${(typeof item.price === 'number' ? item.price * item.quantity : 0).toFixed(2)}</p>
                   <button 
-                    class="text-red-600 hover:text-red-800 text-sm mt-1"
+                    class="text-red-500 hover:text-red-700" 
                     onclick={() => removeFromCart(item.id)}
+                    aria-label={`Remove ${item.title} from cart`}
                   >
-                    Remove
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
               </div>
             {/each}
           </div>
-  
-          <!-- Total and Checkout -->
-          <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex justify-between items-center mb-4">
-              <span class="text-xl font-semibold">Total:</span>
-              <span class="text-2xl font-bold text-green-600">${totalPrice}</span>
+          <!-- Order Summary -->
+          <div class="mt-6 p-4 bg-gray-100 rounded-lg">
+            <h3 class="text-lg font-semibold mb-2">Order Summary</h3>
+            <div class="flex justify-between mb-2">
+              <span>Subtotal</span>
+              <span>${totalPrice}</span>
             </div>
-            
-            {#if checkoutCooldown > 0}
-              <p class="text-amber-600 mb-4 text-center">
-                Please wait {Math.ceil(checkoutCooldown / 1000)} seconds before next checkout
-              </p>
-            {/if}
-            
-            <button 
-              class="w-full bg-green-600 text-white py-3 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              onclick={checkout}
-              disabled={checkoutCooldown > 0}
-            >
-              {checkoutCooldown > 0 ? `Wait ${Math.ceil(checkoutCooldown / 1000)}s` : 'Complete Checkout'}
+            <div class="flex justify-between mb-2">
+              <span>Shipping</span>
+              <span>Free</span>
+            </div>
+            <div class="flex justify-between font-semibold text-xl mt-2 border-t pt-2">
+              <span>Total</span>
+              <span>${totalPrice}</span>
+            </div>
+            <button class="w-full mt-4 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg" onclick={checkout}>
+              Place Order
             </button>
           </div>
         {/if}

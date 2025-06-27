@@ -78,41 +78,31 @@
     
     // Cart queue system
     async function processCartQueue() {
-      console.log('processCartQueue started, queue length:', $cartQueue.length);
       if ($cartQueue.length === 0) return;
       
       const item = $cartQueue[0];
-      console.log('Processing item:', item.title);
       
-      // Simulate async processing (e.g., API call) with delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Update cart and remove from queue
       $cart = [...$cart, { ...item, queueStatus: 'Added to cart!', quantity: 1 }];
       $cartQueue = $cartQueue.slice(1);
-      console.log('Item processed, added to cart. New cart length:', $cart.length, 'Queue length:', $cartQueue.length);
       
-      // Process next item if any
       if ($cartQueue.length > 0) {
         processCartQueue();
       }
     }
     
     function addToCart(product) {
-      console.log('addToCart called for product:', product.title);
       const item = { ...product, queueStatus: 'Adding to cart...' };
       $cartQueue = [...$cartQueue, item];
-      console.log('Cart Queue updated:', $cartQueue.length);
       if ($cartQueue.length === 1) {
         processCartQueue();
       }
     }
     
-    function removeFromCart(productId, optimistic = true) {
-      if (optimistic) {
-        // Optimistic update
-        $cart = $cart.filter(item => item.id !== productId);
-      }
+    function removeFromCart(productId) {
+      $cart = $cart.filter(item => item.id !== productId);
     }
     
     function navigate(page, pageNum = 1) {
@@ -154,13 +144,11 @@
     let paginatedProducts = $state([]);
     
     $effect(() => {
-      console.log('Products:', products.length);
       filteredProducts = products;
     });
     
     $effect(() => {
       const pages = Math.ceil(products.length / PRODUCTS_PER_PAGE);
-      console.log('Total Pages:', pages);
       totalPages = pages;
     });
     
@@ -169,17 +157,13 @@
         (currentPageNum - 1) * PRODUCTS_PER_PAGE,
         currentPageNum * PRODUCTS_PER_PAGE
       );
-      console.log('Paginated Products:', paginated.length, 'Current Page:', currentPageNum);
-      console.log('Products Data:', paginated);
       paginatedProducts = paginated;
     });
     
     let totalPrice = $state('0.00');
     $effect(() => {
       cart.subscribe(value => {
-        console.log('Cart updated for total calculation:', value.length);
         totalPrice = value.reduce((sum, item) => {
-          console.log('Calculating total, item price:', item.price, 'type:', typeof item.price);
           return sum + (typeof item.price === "number" ? item.price : 0);
         }, 0).toFixed(2);
       });
@@ -268,19 +252,6 @@
           />
         </div>
 
-        <!-- Debug Information -->
-        <div class="mb-6 p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-sm text-yellow-800">
-          <h3 class="text-lg font-semibold mb-2">Debug Info</h3>
-          <p>Total Products: {products.length}</p>
-          <p>Filtered Products: {filteredProducts.length}</p>
-          <p>Paginated Products: {paginatedProducts.length}</p>
-          <p>Current Page: {currentPageNum}</p>
-          <p>Total Pages: {totalPages}</p>
-          <p>Search Term: '{searchTerm}'</p>
-          <p>Cart Queue Length: {$cartQueue.length}</p>
-          <p>Cart Items: {$cart.length}</p>
-        </div>
-  
         <!-- Loader -->
         {#if isLoading}
           <div class="flex justify-center items-center py-16">
@@ -306,7 +277,6 @@
                     <button 
                       class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                       onclick={() => {
-                        console.log('Button clicked for product:', product.title);
                         addToCart(product);
                       }}
                     >

@@ -5,7 +5,6 @@
     let cartCount = $state(0);
     $effect(() => {
       cart.subscribe(value => {
-        console.log('Cart updated in layout:', value);
         cartCount = value.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
       });
     });

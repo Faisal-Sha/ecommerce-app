@@ -71,7 +71,6 @@
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
         searchTerm = event.target.value;
-        currentPageNum = 1;
         updateURL();
       }, DEBOUNCE_DELAY);
     }
@@ -144,16 +143,20 @@
     let paginatedProducts = $state([]);
     
     $effect(() => {
-      filteredProducts = products;
+      filteredProducts = products.filter(product => 
+        product.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        product.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      currentPageNum = 1; // Reset to first page on new search
     });
     
     $effect(() => {
-      const pages = Math.ceil(products.length / PRODUCTS_PER_PAGE);
+      const pages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
       totalPages = pages;
     });
     
     $effect(() => {
-      const paginated = products.slice(
+      const paginated = filteredProducts.slice(
         (currentPageNum - 1) * PRODUCTS_PER_PAGE,
         currentPageNum * PRODUCTS_PER_PAGE
       );

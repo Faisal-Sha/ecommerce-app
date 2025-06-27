@@ -11,4 +11,4 @@
     });
 </script>
 {@render children()}
-<span class="bg-red-500 text-white px-2 py-1 rounded-full text-sm">{cartCount}</span>
+<!-- Removed duplicate cart count badge -->

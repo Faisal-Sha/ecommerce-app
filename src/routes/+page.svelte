@@ -106,7 +106,14 @@
     
     function navigate(page, pageNum = 1) {
       currentPage = page;
-      currentPageNum = pageNum;
+      if (page === 'home' || page === 'products') {
+        searchTerm = ''; // Reset search term on navigation to home or products
+      }
+      if (page === 'products') {
+        currentPageNum = pageNum;
+      } else if (page === 'checkout') {
+        updateCartPage();
+      }
       updateURL();
       
       if (page === 'products') {

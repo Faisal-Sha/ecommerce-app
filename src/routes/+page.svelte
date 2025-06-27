@@ -13,6 +13,8 @@
     let activeUsers = $state(0);
     let lastCheckoutTime = $state(0);
     let checkoutCooldown = $state(0);
+    let checkoutSuccess = $state(false);
+    let checkoutMessage = $state('');
     
     // Use local state with Runes for cart and queue
     let cart = $state([]);
@@ -39,10 +41,15 @@
       updateActiveUsers();
       const interval = setInterval(updateActiveUsers, 5000);
       
-      // Update checkout cooldown
+      // Preload products data on initial load
+      if (currentPage === 'products') {
+        fetchProducts();
+      }
+      
+      // Update checkout cooldown timer
       const cooldownInterval = setInterval(() => {
         if (checkoutCooldown > 0) {
-          checkoutCooldown = Math.max(0, checkoutCooldown - 1000);
+          checkoutCooldown -= 1000;
         }
       }, 1000);
       
@@ -158,8 +165,13 @@
       }
       lastCheckoutTime = now;
       checkoutCooldown = CHECKOUT_COOLDOWN;
-      alert('Checkout successful! Thank you for your purchase.');
+      checkoutSuccess = true;
+      checkoutMessage = 'Checkout successful! Thank you for your purchase.';
       cart = [];
+      setTimeout(() => {
+        checkoutSuccess = false;
+        checkoutMessage = '';
+      }, 5000); // Hide message after 5 seconds
     }
     
     // Filter and paginate products
@@ -405,11 +417,46 @@
               <span>Total</span>
               <span>${totalPrice}</span>
             </div>
-            <button class="w-full mt-4 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg" onclick={checkout}>
-              Place Order
+            <button 
+              class="w-full mt-4 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg"
+              onclick={checkout}
+              disabled={checkoutCooldown > 0}
+            >
+              {checkoutCooldown > 0 ? `Wait ${Math.ceil(checkoutCooldown / 1000)}s` : 'Place Order'}
             </button>
+            {#if checkoutCooldown > 0}
+              <p class="text-amber-600 mt-2 text-center text-sm">
+                Please wait {Math.ceil(checkoutCooldown / 1000)} seconds before next checkout
+              </p>
+            {/if}
           </div>
         {/if}
+      </div>
+    {/if}
+  
+    <!-- Checkout Success Modal -->
+    {#if checkoutSuccess}
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full shadow-lg transform transition-all animate-bounce-in">
+          <div class="flex items-center justify-center mb-4 text-green-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 class="text-2xl font-semibold text-center mb-2">Success!</h3>
+          <p class="text-gray-600 text-center mb-6">{checkoutMessage}</p>
+          <div class="flex justify-center">
+            <button 
+              class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              onclick={() => {
+                checkoutSuccess = false;
+                checkoutMessage = '';
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       </div>
     {/if}
   </main>
